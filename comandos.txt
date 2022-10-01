@@ -1,0 +1,42 @@
+
+* Consigna
+Configurar Nginx para balancear cargas de nuestro servidor de la siguiente manera:
+
+Redirigir todas las consultas a /api/randoms a un cluster de servidores escuchando en el puerto 8081.
+El cluster será creado desde node utilizando el módulo nativo cluster.
+El resto de las consultas, redirigirlas a un servidor individual escuchando en el puerto 8080.
+
+
+1) Archivo nginx.conf
+
+                    events {
+                    }
+                    http {
+                        upstream  node_app {
+                            server 127.0.0.1:8080;
+                            server 127.0.0.1:8081;
+                        }
+                        server {
+                            listen 80;
+                            location / {
+                                proxy_pass http://node_app/;
+                            }
+                            location /api/randoms/ {
+                                proxy_pass http://127.0.0.1:8081/api/randoms/;
+                            }
+                        }
+
+Como no puedo ejecutar 2 veces el archivo main.js desde node  y con pm2 no puedo
+ejecutar el archivo en modo cluster lo que hago es:
+
+    1) Ejecuto con pm2 main.js en el puerto 8080 (puerto establecido por defecto) para todos los request que no vengan de "api/randoms/"
+        (No puedo ingresar el puerto por consola con pm2) con el siguiente comando.
+
+                pm2 start src/main.js  --name="pm2Fork" --watch
+
+    2) Ejecuto el servidor con node en modo cluster con el siguiente comando
+
+                node src/main.js -m cluster -p 8081
+
+    3) Ahora busco el archivo nginx.exe en la carpeta nginx-1.23.1 y lo ejecuto
+

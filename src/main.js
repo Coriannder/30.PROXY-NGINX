@@ -7,11 +7,13 @@ import { ContenedorMemoria } from './container/ContenedorMemoria.js'
 import { createManyProducts } from './mocks/productosMocks.js'
 import { webAuth, apiAuth } from '../src/auth/index.js'
 import { SECRET_SESSION_MONGO, URL_MONGO, PORT } from './config/config.js'
-
 import session from 'express-session'
 import MongoStore from 'connect-mongo'
-
 import { createHash , isValidPassword } from './utils/crypt.js'
+
+import cluster from 'cluster'
+import { cpus } from 'os'
+const numCPUs = cpus().length;
 
 const app = express()
 const httpServer = new HttpServer(app)
@@ -24,21 +26,6 @@ app.use(express.urlencoded({extended: true}))
 //------------------Configuracion EJS---------------------------------//
 app.set('views', './views')
 app.set('view engine', 'ejs')
-
-
-//------------------YARGS---------------------------------//
-import yargs from  'yargs'
-
-const port = yargs(process.argv.slice(2))
-    .alias({
-        p: 'port'
-    })
-    .default({
-        port: PORT
-    })
-    .argv
-
-//------------------------------------------------------------------//
 
 
 
@@ -93,22 +80,15 @@ let subtitleLogin
 let ruta = 'login'
 let error
 
-app.get('/info' ,  (req, res) => {
 
-    const datos = {
-        argEntrada: process.argv.splice(2),
-        sistemaOperativo: process.platform,
-        nodeVersion: process.version,
-        rss: process.memoryUsage().rss,
-        path: process.execPath ,
-        idProcess: process.pid,
-        proyectDir: process.cwd()
-    }
-    res.json(datos)
-    console.log(datos)
+app.get('/info', (req, res) => {
+
+    res.send(`Estas en el puerto ${port}`)
 })
 
-app.use('/api/randoms', noBloqueante )
+
+
+app.use('/api/randoms', noBloqueante)
 
 
 app.get('/login' ,  (req, res) => {
@@ -208,10 +188,61 @@ io.on('connection', async (socket) => {
 })
 
 
-//------------------Configuracion Server---------------------------------//
+//------------------YARGS---------------------------------//
+import yargs from  'yargs'
 
-//const PORT = 8080
-const server = httpServer.listen(port, ()=>{
-    console.log(`Servidor escuchando en el puerto ${server.address().port}`)
-})
-server.on(`error`, error => console.log(`Error en servidor: ${error}`))
+const { port, mode } = yargs(process.argv.slice(2))
+    .alias({
+        p: 'port',
+        m: 'mode'
+    })
+    .default({
+        port: PORT,
+        mode: 'fork'
+    })
+    .argv
+
+//------------------------------------------------------------------//
+
+if(mode === 'cluster'){
+    if (cluster.isPrimary) {
+        console.log(`Primary ${process.pid} is running`);
+
+        // Fork workers.
+        for (let i = 0; i < numCPUs; i++) {
+            cluster.fork();
+        }
+
+        cluster.on('exit', (worker, code, signal) => {
+            console.log(`worker ${worker.process.pid} died`);
+        });
+    } else {
+
+    //------------------Configuracion Server---------------------------------//
+
+    //const PORT = 8080
+    const server = httpServer.listen(port, ()=>{
+        console.log(`Servidor escuchando en el puerto ${server.address().port}`, `numero de cpus ${numCPUs}`)
+    })
+    server.on(`error`, error => console.log(`Error en servidor: ${error}`))
+
+    }
+
+}else{
+
+    //------------------Configuracion Server---------------------------------//
+ 
+    //const PORT = 8080
+    const server = httpServer.listen(port, ()=>{
+        puerto = server.address().port
+        console.log(`Servidor escuchando en el puerto ${server.address().port}`, `numero de cpus ${numCPUs}`)
+    })
+    server.on(`error`, error => console.log(`Error en servidor: ${error}`))
+
+}
+
+let puerto;
+
+
+
+
